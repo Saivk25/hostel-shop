@@ -1,0 +1,19 @@
+/* style.css */
+.out-of-stock {
+  color: #dc2626;
+  background-color: #fee2e2;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.category-btn.active {
+  background-color: #8b5cf6;
+  color: #ffffff;
+}
+
+/* New for success message */
+#successMessage {
+  transition: opacity 0.3s ease;
+}
