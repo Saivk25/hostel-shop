@@ -721,7 +721,7 @@ function showPaymentModal() {
     modal.classList.remove('hidden');
     qrCodeDiv.innerHTML = '';
     if (upiRadio.checked) {
-        const upiString = `upi://pay?pa=hostelshop@upi&pn=HostelShop&am=${pendingOrder.total}&cu=INR&tn=Order${Date.now()}`;
+        const upiString = `upi://pay?pa=9940525358@okbizaxis&pn=K2Essentials&am=${pendingOrder.total}&cu=INR&tn=Order${Date.now()}`;
         try {
             new QRCode(qrCodeDiv, { text: upiString, width: 200, height: 200 });
             transactionIdInput.classList.remove('hidden');
@@ -744,7 +744,7 @@ function togglePaymentMethod() {
     pendingOrder.paymentMethod = upiRadio.checked ? 'upi' : 'cod';
     qrCodeDiv.innerHTML = '';
     if (upiRadio.checked) {
-        const upiString = `upi://pay?pa=hostelshop@upi&pn=HostelShop&am=${pendingOrder.total}&cu=INR&tn=Order${Date.now()}`;
+        const upiString = `upi://pay?pa=9940525358@okbizaxis&pn=K2Essentials&am=${pendingOrder.total}&cu=INR&tn=Order${Date.now()}`;
         try {
             new QRCode(qrCodeDiv, { text: upiString, width: 200, height: 200 });
             transactionIdInput.classList.remove('hidden');
