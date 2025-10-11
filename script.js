@@ -1403,11 +1403,23 @@ function openEditModal(itemId) {
         document.getElementById('editItemSize').value = item.size || '';
         document.getElementById('editItemPrice').value = item.price;
         document.getElementById('editItemCategory').value = item.category || '';
-document.getElementById('editItemImageUrl').value = item.image || '';
-// Show preview if image exists
-if (item.image) {
-    showImagePreview(item.image, 'editItemImage');
-}
+        document.getElementById('editItemImageUrl').value = item.image || '';
+        
+        // Show existing image preview
+        const previewContainer = document.getElementById('editImagePreviewContainer');
+        if (item.image && previewContainer) {
+            previewContainer.innerHTML = `
+                <div class="relative inline-block">
+                    <img src="${item.image}" alt="Current image" class="w-32 h-32 object-cover rounded-lg border-2 border-green-300 shadow-md">
+                    <div class="absolute top-0 right-0 bg-green-500 text-white text-xs px-2 py-1 rounded-bl-lg">
+                        Current
+                    </div>
+                </div>
+            `;
+        } else if (previewContainer) {
+            previewContainer.innerHTML = '<p class="text-sm text-gray-500 italic">No image currently set</p>';
+        }
+        
         document.getElementById('editModal').classList.remove('hidden');
     }
 }
