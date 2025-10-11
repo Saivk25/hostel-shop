@@ -33,6 +33,7 @@ let currentAdminCategory = 'all';
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
         loadImgBBApiKey(); // ADD THIS LINE
+        loadUpiId();
 
     try {
         await loadCategoriesFromFirebase();
@@ -721,11 +722,17 @@ function showPaymentModal() {
     modal.classList.remove('hidden');
     qrCodeDiv.innerHTML = '';
     if (upiRadio.checked) {
-        const upiString = `upi://pay?pa=9940525358@okbizaxis&pn=K2Essentials&am=${pendingOrder.total}&cu=INR&tn=Order${Date.now()}`;
+        const upiId = getUpiId(); // Get saved UPI ID
+const upiString = `upi://pay?pa=${upiId}&pn=K2Essentials&am=${pendingOrder.total}&cu=INR&tn=Order${Date.now()}`;
         try {
-            new QRCode(qrCodeDiv, { text: upiString, width: 200, height: 200 });
-            transactionIdInput.classList.remove('hidden');
-        } catch (error) {
+        new QRCode(qrCodeDiv, { text: upiString, width: 200, height: 200 });
+        // Add UPI ID display below QR code
+        const upiDisplay = document.createElement('p');
+        upiDisplay.className = 'text-sm text-gray-700 mt-3 font-medium text-center';
+        upiDisplay.innerHTML = `UPI ID: <span class="text-green-600 font-bold">${upiId}</span>`;
+        qrCodeDiv.appendChild(upiDisplay);
+        transactionIdInput.classList.remove('hidden');
+    } catch (error) {
             console.error("QR code generation failed:", error);
             qrCodeDiv.innerHTML = '<p class="text-red-500">Failed to generate QR code.</p>';
             transactionIdInput.classList.remove('hidden');
@@ -746,9 +753,14 @@ function togglePaymentMethod() {
     if (upiRadio.checked) {
         const upiString = `upi://pay?pa=9940525358@okbizaxis&pn=K2Essentials&am=${pendingOrder.total}&cu=INR&tn=Order${Date.now()}`;
         try {
-            new QRCode(qrCodeDiv, { text: upiString, width: 200, height: 200 });
-            transactionIdInput.classList.remove('hidden');
-        } catch (error) {
+        new QRCode(qrCodeDiv, { text: upiString, width: 200, height: 200 });
+        // Add UPI ID display below QR code
+        const upiDisplay = document.createElement('p');
+        upiDisplay.className = 'text-sm text-gray-700 mt-3 font-medium text-center';
+        upiDisplay.innerHTML = `UPI ID: <span class="text-green-600 font-bold">${upiId}</span>`;
+        qrCodeDiv.appendChild(upiDisplay);
+        transactionIdInput.classList.remove('hidden');
+    } catch (error) {
             console.error("QR code generation failed:", error);
             qrCodeDiv.innerHTML = '<p class="text-red-500">Failed to generate QR code.</p>';
             transactionIdInput.classList.remove('hidden');
@@ -758,7 +770,56 @@ function togglePaymentMethod() {
         transactionIdInput.classList.add('hidden');
     }
 }
+// ============================================
+// UPI ID Management Functions
+// ============================================
 
+// Save UPI ID to localStorage
+function saveUpiId() {
+    const upiId = document.getElementById('upiIdInput')?.value.trim();
+    if (!upiId) {
+        showToast('Please enter a UPI ID!', 'warning');
+        return;
+    }
+    
+    // Basic validation
+    if (!upiId.includes('@')) {
+        showToast('Invalid UPI ID format! Must contain @', 'error');
+        return;
+    }
+    
+    localStorage.setItem('upiId', upiId);
+    const status = document.getElementById('upiIdStatus');
+    if (status) {
+        status.textContent = '✅ UPI ID saved successfully!';
+        status.className = 'text-xs text-green-600 mt-2 font-bold';
+    }
+    showToast('✅ UPI ID saved! It will be used for all future payments.', 'success');
+}
+
+// Load saved UPI ID on page load
+function loadUpiId() {
+    const savedUpiId = localStorage.getItem('upiId') || '9940525358@okbizaxis'; // Default
+    const upiIdInput = document.getElementById('upiIdInput');
+    const status = document.getElementById('upiIdStatus');
+    
+    if (upiIdInput) {
+        upiIdInput.value = savedUpiId;
+        if (status) {
+            status.textContent = savedUpiId === '9940525358@okbizaxis' 
+                ? '⚠️ Using default UPI ID' 
+                : '✅ Custom UPI ID loaded';
+            status.className = savedUpiId === '9940525358@okbizaxis' 
+                ? 'text-xs text-yellow-600 mt-2' 
+                : 'text-xs text-green-600 mt-2';
+        }
+    }
+}
+
+// Get current UPI ID (with fallback)
+function getUpiId() {
+    return localStorage.getItem('upiId') || '9940525358@okbizaxis';
+}
 function cancelPayment() {
     const modal = document.getElementById('paymentModal');
     const transactionId = document.getElementById('transactionId');
@@ -2109,3 +2170,7 @@ window.renderAdminCategoryFilter = renderAdminCategoryFilter;
 // Utility Functions
 window.checkDuplicates = checkDuplicates;
 window.showToast = showToast;
+// UPI ID Functions
+window.saveUpiId = saveUpiId;
+window.loadUpiId = loadUpiId;
+window.getUpiId = getUpiId;

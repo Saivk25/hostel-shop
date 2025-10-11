@@ -655,6 +655,25 @@
                     Settings
                 </h2>
                 <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg">
+                    <!-- ADD THIS NEW UPI ID SETTINGS SECTION -->
+        <div class="bg-green-50 border-l-4 border-green-500 p-4 rounded-lg mt-4">
+            <div class="flex items-start">
+                <i class="fas fa-mobile-alt text-green-500 mr-3 mt-1 text-xl"></i>
+                <div class="flex-1">
+                    <h3 class="text-sm font-bold text-green-800 mb-2">💳 UPI Payment Settings</h3>
+                    <p class="text-xs text-green-700 mb-3">
+                        Configure your UPI ID for receiving payments
+                    </p>
+                    <div class="flex gap-2">
+                        <input type="text" id="upiIdInput" placeholder="Enter UPI ID (e.g., 9940525358@okbizaxis)" class="flex-1 input-field">
+                        <button onclick="saveUpiId()" class="bg-green-500 text-white px-6 py-2 rounded-lg text-sm hover:bg-green-600 font-semibold">
+                            Save UPI ID
+                        </button>
+                    </div>
+                    <p class="text-xs text-gray-600 mt-2" id="upiIdStatus"></p>
+                </div>
+            </div>
+        </div>
                     <div class="flex items-start">
                         <i class="fas fa-key text-blue-500 mr-3 mt-1 text-xl"></i>
                         <div class="flex-1">
