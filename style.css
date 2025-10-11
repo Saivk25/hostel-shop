@@ -1,0 +1,153 @@
+/* K2 Essentials Theme - Reset and Base Styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 25%, #bbf7d0 50%, #86efac 75%, #4ade80 100%);
+    background-attachment: fixed;
+    font-family: 'Inter', 'Arial', sans-serif;
+    color: #1f2937;
+    min-height: 100vh;
+}
+
+/* K2 Theme Colors */
+:root {
+    --k2-lime: #a3e635;
+    --k2-green: #84cc16;
+    --k2-dark-green: #65a30d;
+    --k2-light: #f0fdf4;
+    --k2-border: #d9f99d;
+}
+
+/* Button Styles */
+.btn-green {
+    background: linear-gradient(90deg, var(--k2-green), var(--k2-lime));
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.75rem;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-green:hover {
+    background: linear-gradient(90deg, var(--k2-dark-green), var(--k2-green));
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(132, 204, 22, 0.3);
+}
+
+.btn-green:disabled {
+    background: #d1d5db;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Card Styles */
+.card {
+    background: rgba(255, 255, 255, 0.95);
+    border: 2px solid var(--k2-border);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    box-shadow: 0 4px 12px rgba(132, 204, 22, 0.1);
+    transition: all 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(132, 204, 22, 0.2);
+    border-color: var(--k2-lime);
+}
+
+/* Input Styles */
+input, select, textarea {
+    transition: all 0.3s ease;
+}
+
+input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: var(--k2-green) !important;
+    box-shadow: 0 0 0 3px rgba(132, 204, 22, 0.1);
+}
+
+/* Category Button Styles */
+.category-btn {
+    background: white;
+    color: #4b5563;
+    border: 2px solid var(--k2-border);
+    transition: all 0.3s ease;
+}
+
+.category-btn:hover {
+    background: var(--k2-border);
+    border-color: var(--k2-green);
+}
+
+.category-btn.active {
+    background: linear-gradient(90deg, var(--k2-green), var(--k2-lime)) !important;
+    color: white !important;
+    border-color: var(--k2-green) !important;
+    box-shadow: 0 4px 12px rgba(132, 204, 22, 0.3);
+}
+
+/* Order Filter Buttons */
+.order-filter-btn {
+    background: var(--k2-border);
+    color: #365314;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.order-filter-btn:hover {
+    background: #bef264;
+}
+
+.order-filter-btn.active {
+    background: linear-gradient(90deg, var(--k2-green), var(--k2-lime));
+    color: white;
+}
+
+/* Admin Item Grid Buttons */
+#adminItemsGrid .btn-green {
+    background: #ecfccb;
+    color: var(--k2-dark-green);
+}
+
+#adminItemsGrid .btn-green:hover {
+    background: var(--k2-border);
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+    width: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--k2-light);
+}
+
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, var(--k2-green), var(--k2-dark-green));
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, var(--k2-dark-green), #4d7c0f);
+}
+
+/* Loading Animation */
+@keyframes pulse-green {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.loading {
+    animation: pulse-green 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
