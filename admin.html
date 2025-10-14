@@ -432,6 +432,17 @@
             background: #84cc16 !important;
             color: white !important;
         }
+        #newItemCategory,
+#editItemCategory {
+    background: white !important;
+    color: #1f2937 !important;
+}
+
+#newItemCategory option,
+#editItemCategory option {
+    background: white !important;
+    color: #1f2937 !important;
+}
     </style>
 </head>
 <body>
@@ -554,9 +565,9 @@
                     <input type="text" id="newItemName" placeholder="Item Name" class="input-field">
                     <input type="text" id="newItemSize" placeholder="Size/Quantity (e.g., 50g, 500ml)" class="input-field">
                     <input type="number" id="newItemPrice" placeholder="Price (₹)" class="input-field">
-                    <select id="newItemCategory" class="input-field">
-                        <option value="">Select Category</option>
-                    </select>
+                    <select id="newItemCategory" class="input-field" style="background: white !important; color: #1f2937 !important;">
+    <option value="">Select Category</option>
+</select>
                     <div class="flex gap-2">
                         <input type="file" id="newItemImage" accept="image/*" onchange="uploadImageToImgBB('newItemImage', 'newItemImageUrl')" class="flex-1 input-field">
                         <input type="text" id="newItemImageUrl" placeholder="Image URL (auto-filled after upload)" class="flex-1 input-field" readonly>
@@ -586,6 +597,7 @@
         </section>
 
         <!-- Manage Items Section -->
+<!-- Manage Items Section -->
 <section id="manage-items" class="content-section">
     <div class="card">
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
@@ -594,7 +606,6 @@
                 Manage Items
             </h2>
             
-            <!-- ADD THIS BUTTON -->
             <button onclick="removeDuplicateItems()" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-all flex items-center gap-2">
                 <i class="fas fa-trash-alt"></i> Remove Duplicates
             </button>
@@ -606,6 +617,9 @@
                 </button>
             </div>
         </div>
+        
+        <!-- Recently Deleted Items Container (appears when items are deleted) -->
+        <div id="recentlyDeletedContainer" class="hidden"></div>
         
         <!-- Search Bar for Admin Items -->
         <div class="mb-4">
@@ -625,7 +639,7 @@
             <p class="text-lg">No items found</p>
         </div>
     </div>
-</section>
+</section>  
         <!-- Orders Section -->
 <section id="orders" class="content-section">
     <div class="card">

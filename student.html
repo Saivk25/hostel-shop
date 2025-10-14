@@ -153,7 +153,15 @@
                     <span class="hidden sm:inline">Back to Items</span>
                 </button>
             </div>
-
+            <!-- Dispatch Time Notice -->
+<div class="bg-gradient-to-r from-green-50 to-emerald-50 border-l-4 border-green-500 rounded-lg p-4 mb-6 flex items-start gap-3">
+    <i class="fas fa-clock text-green-600 text-2xl mt-1"></i>
+    <div>
+        <h3 class="font-bold text-gray-800 mb-1">📦 Order Dispatch Time</h3>
+        <p class="text-gray-700 text-sm">All orders will be ready for pickup between <span class="font-bold text-green-600">6:00 PM - 8:00 PM</span></p>
+        <p class="text-xs text-gray-500 mt-1">Please collect your order during these hours from the shop</p>
+    </div>
+</div>
             <div id="cartEmpty" class="text-center py-12 text-gray-400">
                 <i class="fas fa-shopping-cart text-6xl mb-4 opacity-30"></i>
                 <p class="text-lg">Your cart is empty</p>
@@ -182,6 +190,17 @@
         <input type="text" id="room" placeholder="Room Number" class="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none">
     </div>
 </div>
+                <!-- Carry Bag Option -->
+<div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+    <label class="flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" id="carryBagCheckbox" onchange="toggleCarryBag()" class="w-5 h-5 text-green-600 rounded focus:ring-green-500">
+        <div class="flex-1">
+            <span class="font-semibold text-gray-800">Add Carry Bag</span>
+            <span class="text-green-600 font-bold ml-2">+₹10</span>
+            <p class="text-xs text-gray-600 mt-1">Optional: Get a carry bag for your items</p>
+        </div>
+    </label>
+</div>
                 <button onclick="placeOrder()" class="btn-green w-full py-4 rounded-xl font-bold text-lg hover:shadow-xl flex items-center justify-center gap-2">
                     <i class="fas fa-check-circle"></i> Place Order
                 </button>
@@ -206,38 +225,54 @@
 
     <!-- Payment QR Modal -->
     <div id="paymentModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl p-6 max-w-md w-full">
-            <h3 class="text-2xl font-bold text-gray-800 mb-4 text-center">Complete Payment</h3>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
-                <div class="flex gap-4">
-                    <label class="flex items-center gap-2">
-                        <input type="radio" id="paymentUPI" name="paymentMethod" value="upi" checked onclick="togglePaymentMethod()" class="text-green-600 focus:ring-green-500">
-                        <span>UPI (Scan QR)</span>
-                    </label>
-                    <label class="flex items-center gap-2">
-                        <input type="radio" id="paymentCOD" name="paymentMethod" value="cod" onclick="togglePaymentMethod()" class="text-green-600 focus:ring-green-500">
-                        <span>Pay on Delivery</span>
-                    </label>
-                </div>
-            </div>
-            <div class="bg-gray-100 p-4 rounded-xl mb-4">
-                <p class="text-center text-gray-600 mb-2">Payment Details</p>
-                <div id="qrCode" class="flex justify-center mb-4"></div>
-                <p class="text-center text-2xl font-bold text-green-600 mb-2">₹<span id="paymentAmount">0</span></p>
-                
-            </div>
-            <div id="transactionIdInput" class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Transaction ID / UTR Number</label>
-                <input type="text" id="transactionId" placeholder="Enter transaction ID" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none">
-            </div>
-            <div class="flex gap-3">
-                <button onclick="cancelPayment()" class="flex-1 px-4 py-3 bg-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-300 transition-all">Cancel</button>
-                <button onclick="confirmPayment()" class="flex-1 px-4 py-3 btn-green rounded-xl font-medium hover:shadow-lg">Confirm Payment</button>
+    <div class="bg-white rounded-2xl p-6 max-w-md w-full">
+        <h3 class="text-2xl font-bold text-gray-800 mb-4 text-center">Complete Payment</h3>
+        
+        <!-- Payment Method Selection -->
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
+            <div class="flex flex-col gap-3">
+                <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-lg hover:border-green-500 cursor-pointer transition-all">
+    <input type="radio" id="paymentDirect" name="paymentMethod" value="direct" checked onclick="togglePaymentMethod()" class="text-green-600 focus:ring-green-500">
+    <div class="flex-1">
+        <span class="font-semibold">📱 Pay Directly (Mobile Only)</span>
+        <p class="text-xs text-gray-500">Opens your UPI app instantly - works only on phones</p>
+    </div>
+</label>
+                <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-lg hover:border-green-500 cursor-pointer transition-all">
+                    <input type="radio" id="paymentUPI" name="paymentMethod" value="upi" onclick="togglePaymentMethod()" class="text-green-600 focus:ring-green-500">
+                    <div class="flex-1">
+                        <span class="font-semibold">🔲 Scan QR Code</span>
+                        <p class="text-xs text-gray-500">Use another device to scan</p>
+                    </div>
+                </label>
+                <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-lg hover:border-green-500 cursor-pointer transition-all">
+                    <input type="radio" id="paymentCOD" name="paymentMethod" value="cod" onclick="togglePaymentMethod()" class="text-green-600 focus:ring-green-500">
+                    <div class="flex-1">
+                        <span class="font-semibold">💵 Pay on Delivery</span>
+                        <p class="text-xs text-gray-500">Pay at the shop</p>
+                    </div>
+                </label>
             </div>
         </div>
+        
+        <div class="bg-gray-100 p-4 rounded-xl mb-4">
+            <p class="text-center text-gray-600 mb-2">Payment Details</p>
+            <div id="qrCode" class="flex justify-center mb-4"></div>
+            <p class="text-center text-2xl font-bold text-green-600 mb-2">₹<span id="paymentAmount">0</span></p>
+        </div>
+        
+        <div id="transactionIdInput" class="mb-4 hidden">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Transaction ID / UTR Number</label>
+            <input type="text" id="transactionId" placeholder="Enter transaction ID" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none">
+        </div>
+        
+        <div class="flex gap-3">
+            <button onclick="cancelPayment()" class="flex-1 px-4 py-3 bg-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-300 transition-all">Cancel</button>
+            <button onclick="confirmPayment()" class="flex-1 px-4 py-3 btn-green rounded-xl font-medium hover:shadow-lg">Confirm Payment</button>
+        </div>
     </div>
-
+</div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script type="module" src="script.js"></script>
     <!-- Toast Container -->

@@ -29,11 +29,14 @@ let currentOrderFilter = 'all';
 let pendingOrder = null;
 let isSubmitting = false;
 let currentAdminCategory = 'all';
+let carryBagSelected = false;
+
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
         loadImgBBApiKey(); // ADD THIS LINE
         loadUpiId();
+        loadRecentlyDeleted(); // ADD THIS LINE
 
     try {
         await loadCategoriesFromFirebase();
@@ -44,6 +47,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (document.getElementById('adminItemsGrid')) {
             await loadOrdersFromFirebase();
             renderAdminPage();
+            renderDeletedItemsSection(); 
             setupOrdersListener();
             setupCategoriesListener();
         }
@@ -153,7 +157,29 @@ function searchAdminItems(query) {
         </div>
     `).join('');
 }
-
+function toggleCarryBag() {
+    const checkbox = document.getElementById('carryBagCheckbox');
+    carryBagSelected = checkbox ? checkbox.checked : false;
+    console.log('Carry bag toggled to:', carryBagSelected);  // Debug: Check browser console
+    renderCart();  // This should now update the total
+}
+function openDirectUPIPayment() {
+    const upiId = getUpiId();
+    const amount = getTotalPrice();
+    const upiLink = `upi://pay?pa=${upiId}&pn=K2Essentials&am=${amount}&cu=INR&tn=Order${Date.now()}`;
+    
+    // Open UPI payment app directly
+    window.location.href = upiLink;
+    
+    // Show transaction ID input immediately
+    showToast('Opening UPI app...\n\nAfter payment, enter your Transaction ID below', 'info', 3000);
+    
+    // Make transaction ID input visible
+    const transactionIdInput = document.getElementById('transactionIdInput');
+    if (transactionIdInput) {
+        transactionIdInput.classList.remove('hidden');
+    }
+}
 // ============================================
 // ImgBB Image Upload Functions
 // ============================================
@@ -397,7 +423,131 @@ async function deleteItemFromFirebase(itemId) {
         throw error;
     }
 }
+// Store recently deleted items (max 10)
+let recentlyDeletedItems = [];
+const MAX_DELETED_ITEMS = 10;
 
+async function softDeleteItem(itemId) {
+    const item = items.find(i => i.id === itemId);
+    if (!item) return;
+    
+    // Add to recently deleted with timestamp
+    recentlyDeletedItems.unshift({
+        ...item,
+        deletedAt: Date.now()
+    });
+    
+    // Keep only last 10
+    if (recentlyDeletedItems.length > MAX_DELETED_ITEMS) {
+        recentlyDeletedItems = recentlyDeletedItems.slice(0, MAX_DELETED_ITEMS);
+    }
+    
+    // Save to localStorage
+    localStorage.setItem('recentlyDeleted', JSON.stringify(recentlyDeletedItems));
+    
+    // Actually delete from Firebase
+    await deleteItemFromFirebase(itemId);
+}
+
+function loadRecentlyDeleted() {
+    const saved = localStorage.getItem('recentlyDeleted');
+    if (saved) {
+        recentlyDeletedItems = JSON.parse(saved);
+    }
+}
+
+async function restoreDeletedItem(index) {
+    const item = recentlyDeletedItems[index];
+    if (!item) return;
+    
+    try {
+        // Remove the deletedAt timestamp and id
+        const { deletedAt, id, ...itemData } = item;
+        
+        // Add back to Firebase
+        await addItemToFirebase(itemData);
+        
+        // Remove from deleted list
+        recentlyDeletedItems.splice(index, 1);
+        localStorage.setItem('recentlyDeleted', JSON.stringify(recentlyDeletedItems));
+        
+        // Reload and refresh
+        await loadItemsFromFirebase();
+        renderAdminItems();
+        renderDeletedItemsSection();
+        
+        showToast('✅ Item restored successfully!', 'success');
+    } catch (error) {
+        console.error('Restore error:', error);
+        showToast('❌ Failed to restore item', 'error');
+    }
+}
+
+function renderDeletedItemsSection() {
+    const container = document.getElementById('recentlyDeletedContainer');
+    if (!container) return;
+    
+    if (recentlyDeletedItems.length === 0) {
+        container.classList.add('hidden');
+        return;
+    }
+    
+    container.classList.remove('hidden');
+    container.innerHTML = `
+        <div class="bg-red-50 border-2 border-red-200 rounded-xl p-4 mb-6">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="font-bold text-red-800 flex items-center gap-2">
+                    <i class="fas fa-trash-restore"></i>
+                    Recently Deleted (${recentlyDeletedItems.length})
+                </h3>
+                <button onclick="clearAllDeleted()" class="text-xs text-red-600 hover:text-red-700 underline">
+                    Clear All
+                </button>
+            </div>
+            <div class="space-y-2 max-h-64 overflow-y-auto">
+                ${recentlyDeletedItems.map((item, index) => `
+                    <div class="bg-white rounded-lg p-3 border border-red-200 flex items-center gap-3">
+                        ${item.image 
+                            ? `<img src="${item.image}" alt="${item.name}" class="w-12 h-12 rounded-lg object-cover">`
+                            : `<div class="w-12 h-12 rounded-lg bg-red-100 flex items-center justify-center">
+                                 <i class="fas fa-box text-red-600"></i>
+                               </div>`
+                        }
+                        <div class="flex-1 min-w-0">
+                            <h4 class="font-semibold text-gray-800 text-sm truncate">${item.name}</h4>
+                            <p class="text-xs text-gray-600">${item.size || 'N/A'} • ₹${item.price}</p>
+                            <p class="text-xs text-gray-500">${getTimeAgo(item.deletedAt)}</p>
+                        </div>
+                        <button onclick="restoreDeletedItem(${index})" 
+                                class="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg text-xs font-medium transition-all flex items-center gap-1 whitespace-nowrap">
+                            <i class="fas fa-undo"></i> Restore
+                        </button>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+}
+
+function getTimeAgo(timestamp) {
+    const seconds = Math.floor((Date.now() - timestamp) / 1000);
+    if (seconds < 60) return 'Just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+}
+
+function clearAllDeleted() {
+    if (confirm('Permanently clear all recently deleted items?')) {
+        recentlyDeletedItems = [];
+        localStorage.removeItem('recentlyDeleted');
+        renderDeletedItemsSection();
+        showToast('All deleted items cleared', 'info');
+    }
+}
 async function addOrderToFirebase(order) {
     try {
         const docRef = await addDoc(collection(db, 'orders'), order);
@@ -628,7 +778,9 @@ function deleteFromCart(itemId) {
 }
 
 function getTotalPrice() {
-    return cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+    const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+    const carryBagCost = carryBagSelected ? 10 : 0;  // Adds ₹10 when carryBagSelected is true, 0 when false
+    return cartTotal + carryBagCost;
 }
 
 function renderCart() {
@@ -637,8 +789,11 @@ function renderCart() {
     const cartBadge = document.getElementById('cartBadge');
     const cartItems = document.getElementById('cartItems');
     const totalPrice = document.getElementById('totalPrice');
+    
     if (!cartEmpty || !cartContent || !cartBadge || !cartItems || !totalPrice) return;
+    
     const totalItems = cart.reduce((sum, item) => sum + item.qty, 0);
+    
     if (cart.length === 0) {
         cartEmpty.classList.remove('hidden');
         cartContent.classList.add('hidden');
@@ -648,6 +803,7 @@ function renderCart() {
         cartContent.classList.remove('hidden');
         cartBadge.classList.remove('hidden');
         cartBadge.textContent = `${totalItems} item${totalItems > 1 ? 's' : ''}`;
+        
         cartItems.innerHTML = cart.map(item => `
             <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
                 <div class="flex-1">
@@ -671,10 +827,24 @@ function renderCart() {
                 </div>
             </div>
         `).join('');
+        
+        const carryBagCost = carryBagSelected ? 10 : 0;
+    
+    if (carryBagSelected) {
+        cartItems.innerHTML += `
+            <div class="flex items-center justify-between p-4 bg-blue-50 rounded-xl border border-blue-200">
+                <div class="flex-1">
+                    <h4 class="font-bold text-gray-800">Carry Bag</h4>
+                    <p class="text-sm text-gray-500">Optional packaging</p>
+                </div>
+                <span class="font-bold text-gray-800">₹${carryBagCost}</span>
+            </div>
+        `;
+    }
+        // This line is now properly inside the else block and will update correctly
         totalPrice.textContent = `₹${getTotalPrice()}`;
     }
 }
-
 // Place Order
 function placeOrder() {
     const studentName = document.getElementById('studentName')?.value.trim();
@@ -705,7 +875,10 @@ function placeOrder() {
         status: 'pending',
         total: getTotalPrice(),
         paymentMethod: 'upi',
-        transactionId: null
+        transactionId: null,
+        carryBag: carryBagSelected  // ← ADD THIS LINE
+
+
     };
     showPaymentModal();
 }
@@ -718,6 +891,7 @@ function showPaymentModal() {
     const transactionIdInput = document.getElementById('transactionIdInput');
     const upiRadio = document.getElementById('paymentUPI');
     if (!modal || !amount || !qrCodeDiv || !transactionIdInput || !upiRadio) return;
+    pendingOrder.total = getTotalPrice();
     amount.textContent = pendingOrder.total;
     modal.classList.remove('hidden');
     qrCodeDiv.innerHTML = '';
@@ -744,28 +918,37 @@ const upiString = `upi://pay?pa=${upiId}&pn=K2Essentials&am=${pendingOrder.total
 }
 
 function togglePaymentMethod() {
+    const directRadio = document.getElementById('paymentDirect');
     const upiRadio = document.getElementById('paymentUPI');
+    const codRadio = document.getElementById('paymentCOD');
     const qrCodeDiv = document.getElementById('qrCode');
     const transactionIdInput = document.getElementById('transactionIdInput');
-    if (!qrCodeDiv || !transactionIdInput || !upiRadio) return;
-    pendingOrder.paymentMethod = upiRadio.checked ? 'upi' : 'cod';
-    qrCodeDiv.innerHTML = '';
-    if (upiRadio.checked) {
-        const upiString = `upi://pay?pa=9940525358@okbizaxis&pn=K2Essentials&am=${pendingOrder.total}&cu=INR&tn=Order${Date.now()}`;
-        try {
-        new QRCode(qrCodeDiv, { text: upiString, width: 200, height: 200 });
-        // Add UPI ID display below QR code
-        const upiDisplay = document.createElement('p');
-        upiDisplay.className = 'text-sm text-gray-700 mt-3 font-medium text-center';
-        upiDisplay.innerHTML = `UPI ID: <span class="text-green-600 font-bold">${upiId}</span>`;
-        qrCodeDiv.appendChild(upiDisplay);
+    
+    if (!qrCodeDiv || !transactionIdInput) return;
+    
+    if (directRadio?.checked) {
+        pendingOrder.paymentMethod = 'direct';
+
+        qrCodeDiv.innerHTML = '<p class="text-gray-600 text-center">Click "Confirm Payment" to open your UPI app</p>';
         transactionIdInput.classList.remove('hidden');
-    } catch (error) {
+    } else if (upiRadio?.checked) {
+        pendingOrder.paymentMethod = 'upi';
+        qrCodeDiv.innerHTML = '';
+        const upiId = getUpiId();
+        const upiString = `upi://pay?pa=${upiId}&pn=K2Essentials&am=${pendingOrder.total}&cu=INR&tn=Order${Date.now()}`;
+        try {
+            new QRCode(qrCodeDiv, { text: upiString, width: 200, height: 200 });
+            const upiDisplay = document.createElement('p');
+            upiDisplay.className = 'text-sm text-gray-700 mt-3 font-medium text-center';
+            upiDisplay.innerHTML = `UPI ID: <span class="text-green-600 font-bold">${upiId}</span>`;
+            qrCodeDiv.appendChild(upiDisplay);
+        } catch (error) {
             console.error("QR code generation failed:", error);
             qrCodeDiv.innerHTML = '<p class="text-red-500">Failed to generate QR code.</p>';
-            transactionIdInput.classList.remove('hidden');
         }
+        transactionIdInput.classList.remove('hidden');
     } else {
+        pendingOrder.paymentMethod = 'cod';
         qrCodeDiv.innerHTML = '<p class="text-gray-600">Pay on delivery at the shop.</p>';
         transactionIdInput.classList.add('hidden');
     }
@@ -830,27 +1013,46 @@ function cancelPayment() {
 }
 
 async function confirmPayment() {
-    if (isSubmitting) {
-        console.log('Already submitting, please wait...');
-        return;
-    }
+    if (isSubmitting) return;
     isSubmitting = true;
     
     const transactionId = document.getElementById('transactionId')?.value.trim();
+    
+    // Handle direct payment
+    if (pendingOrder.paymentMethod === 'direct') {
+        openDirectUPIPayment();
+        if (!transactionId) {
+            showToast('Please complete payment and enter Transaction ID first!', 'warning');
+            isSubmitting = false;
+            return;
+        }
+        pendingOrder.transactionId = transactionId;
+    }
+    
+    // Handle UPI QR payment
     if (pendingOrder.paymentMethod === 'upi' && !transactionId) {
         showToast('Please enter the transaction ID for UPI payment!', 'warning');
         isSubmitting = false;
         return;
     }
     
-    pendingOrder.transactionId = pendingOrder.paymentMethod === 'upi' ? transactionId : null;
+    if (pendingOrder.paymentMethod === 'upi') {
+        pendingOrder.transactionId = transactionId;
+    }
+    
+    if (pendingOrder.paymentMethod === 'cod') {
+        pendingOrder.transactionId = null;
+    }
     
     try {
         const orderId = await addOrderToFirebase(pendingOrder);
-        console.log('Order placed successfully with ID:', orderId);
         
         // Clear form and cart
         cart = [];
+        carryBagSelected = false;
+        if (document.getElementById('carryBagCheckbox')) {
+            document.getElementById('carryBagCheckbox').checked = false;
+        }
         document.getElementById('studentName').value = '';
         document.getElementById('regNumber').value = '';
         document.getElementById('room').value = '';
@@ -858,12 +1060,11 @@ async function confirmPayment() {
         document.getElementById('paymentModal').classList.add('hidden');
         renderCart();
         
-        // Show success message
         const message = pendingOrder.paymentMethod === 'cod' 
-            ? 'Order placed! Pay on delivery at the shop.' 
-            : 'Order placed! Payment verification in progress.';
+            ? '✅ Order placed! Pay on delivery at the shop.' 
+            : '✅ Order placed! Payment verification in progress.';
         
-        showToast(message + ' Pick up from shop once confirmed.', 'success', 5000);
+        showToast(message + '\n\n📦 Pickup: 6:00 PM - 8:00 PM', 'success', 6000);
         
         pendingOrder = null;
     } catch (error) {
@@ -1519,13 +1720,15 @@ if (!name || isNaN(price) || !category) {
 }
 
 async function deleteItem(itemId) {
-    if (confirm('Delete this item permanently?')) {
+    if (confirm('Delete this item? (You can restore it from Recently Deleted)')) {
         try {
-            await deleteItemFromFirebase(itemId);
+            await softDeleteItem(itemId);
             items = items.filter(i => i.id !== itemId);
             renderAdminItems();
+            renderDeletedItemsSection();
+            showToast('Item deleted. Check "Recently Deleted" above to restore.', 'info', 4000);
         } catch (error) {
-            showToast('Error deleting item. Please try again.');
+            showToast('Error deleting item. Please try again.', 'error');
         }
     }
 }
@@ -1634,6 +1837,15 @@ function renderOrders() {
                         </div>
                     `).join('')}
                 </div>
+                ${order.carryBag ? `
+    <div class="flex justify-between items-center text-sm border-t pt-2 mt-2">
+        <p class="text-gray-800 flex items-center gap-2">
+            <i class="fas fa-shopping-bag text-blue-500"></i>
+            Carry Bag
+        </p>
+        <p class="text-gray-600">₹10</p>
+    </div>
+` : ''}
 
                 <div class="flex gap-3 mt-4 border-t border-gray-200 pt-3">
                     ${order.status === 'pending' ? `<button onclick="markComplete('${order.id}')" 
@@ -2100,6 +2312,10 @@ window.addEventListener('scroll', handleFloatingCartVisibility);
 window.addEventListener('DOMContentLoaded', () => {
     updateFloatingCartBadge();
     handleFloatingCartVisibility();
+    const checkbox = document.getElementById('carryBagCheckbox');
+    if (checkbox) {
+        checkbox.addEventListener('change', toggleCarryBag);
+    }
 });
 // ============================================
 // EXPOSE ALL FUNCTIONS TO GLOBAL SCOPE
@@ -2174,3 +2390,8 @@ window.showToast = showToast;
 window.saveUpiId = saveUpiId;
 window.loadUpiId = loadUpiId;
 window.getUpiId = getUpiId;
+window.toggleCarryBag = toggleCarryBag;
+window.openDirectUPIPayment = openDirectUPIPayment;
+window.restoreDeletedItem = restoreDeletedItem;
+window.renderDeletedItemsSection = renderDeletedItemsSection;
+window.clearAllDeleted = clearAllDeleted;

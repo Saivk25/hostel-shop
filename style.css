@@ -12,7 +12,16 @@ body {
     color: #1f2937;
     min-height: 100vh;
 }
-
+.input-field {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    background: white !important;  /* Add this */
+    color: #1f2937 !important;     /* Add this */
+    border: 2px solid #d9f99d;
+    border-radius: 0.75rem;
+    font-size: 0.95rem;
+    transition: all 0.3s ease;
+}
 /* K2 Theme Colors */
 :root {
     --k2-lime: #a3e635;
