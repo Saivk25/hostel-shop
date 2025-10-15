@@ -37,12 +37,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         loadImgBBApiKey(); // ADD THIS LINE
         loadUpiId();
         loadRecentlyDeleted(); // ADD THIS LINE
-
+    if (document.getElementById('analytics')) {
+    renderSalesAnalytics();
+    startAnalyticsRefresh();
+    }
     try {
         await loadCategoriesFromFirebase();
         await loadItemsFromFirebase();
+        await loadOrdersFromFirebase();
         if (document.getElementById('itemsGrid')) {
             renderStudentPage();
+            InitializeStudentOrderFeatures();
         }
         if (document.getElementById('adminItemsGrid')) {
             await loadOrdersFromFirebase();
@@ -56,6 +61,38 @@ document.addEventListener('DOMContentLoaded', async () => {
         showToast("Failed to initialize the app. Please check your connection and refresh.");
     }
 });
+// Initialize student order checking features
+function initializeStudentOrderFeatures() {
+    // Wait a bit for orders to fully load
+    setTimeout(() => {
+        const orderStatus = quickCheckOrders();
+        if (orderStatus) {
+            const widget = document.getElementById('quickOrderWidget');
+            const summary = document.getElementById('quickOrderSummary');
+            
+            if (widget && summary) {
+                let message = '';
+                if (orderStatus.pending > 0) {
+                    message = `${orderStatus.pending} order${orderStatus.pending > 1 ? 's' : ''} being prepared`;
+                }
+                if (orderStatus.completed > 0) {
+                    message += (message ? ' • ' : '') + `${orderStatus.completed} ready!`;
+                }
+                
+                summary.textContent = message;
+                widget.classList.remove('hidden');
+                
+                // Auto-hide after 10 seconds
+                setTimeout(() => {
+                    widget.classList.add('hidden');
+                }, 10000);
+            }
+        }
+    }, 1000); // Give Firebase 1 second to load orders
+}
+
+// Expose to global scope
+window.initializeStudentOrderFeatures = initializeStudentOrderFeatures;
 function renderAdminCategoryFilter() {
     const container = document.querySelector('#manage-items .flex.flex-wrap.gap-2');
     if (!container) return;
@@ -1046,7 +1083,8 @@ async function confirmPayment() {
     
     try {
         const orderId = await addOrderToFirebase(pendingOrder);
-        
+        saveRegNumber(pendingOrder.regNumber);
+
         // Clear form and cart
         cart = [];
         carryBagSelected = false;
@@ -1081,9 +1119,10 @@ function renderAdminPage() {
         console.error("Admin page elements missing");
         return;
     }
-    renderAdminCategoryFilter();  // Add this line
+    renderAdminCategoryFilter();
     renderAdminItems();
     renderOrders();
+    renderSalesAnalytics(); // ADD THIS LINE
     renderCategoryOptions('newItemCategory');
     renderCategoryOptions('editItemCategory');
     
@@ -2318,6 +2357,230 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 // ============================================
+// STUDENT ORDER STATUS CHECKER
+// ============================================
+
+function checkMyOrders() {
+    const regNumber = document.getElementById('checkOrderRegNumber')?.value.trim() || 
+                     prompt('Enter your Registration Number:');
+    
+    if (!regNumber) {
+        showToast('Please enter your registration number', 'warning');
+        return;
+    }
+    
+    console.log('🔍 Checking orders for:', regNumber); // Debug
+    console.log('🔍 Total orders in system:', orders.length); // Debug
+    
+    // Make sure orders are loaded
+    if (orders.length === 0) {
+        showToast('Loading orders... Please try again in a moment.', 'info', 3000);
+        // Try to load orders
+        loadOrdersFromFirebase().then(() => {
+            // Retry after loading
+            setTimeout(() => checkMyOrders(), 1000);
+        });
+        return;
+    }
+    
+    // Find orders for this student
+    const myOrders = orders.filter(o => 
+        o.regNumber && o.regNumber.toLowerCase() === regNumber.toLowerCase()
+    );
+    
+    console.log('🔍 Orders found:', myOrders.length); // Debug
+    
+    if (myOrders.length === 0) {
+        showToast('No orders found for registration number: ' + regNumber, 'info', 4000);
+        return;
+    }
+    
+    // Save for quick access next time
+    saveRegNumber(regNumber);
+    
+    // Show orders in modal
+    showOrderStatusModal(myOrders, regNumber);
+}
+function showOrderStatusModal(studentOrders, regNumber) {
+    const modal = document.createElement('div');
+    modal.id = 'orderStatusModal';
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4';
+    
+    const pendingOrders = studentOrders.filter(o => o.status === 'pending');
+    const completedOrders = studentOrders.filter(o => o.status === 'completed');
+    
+    modal.innerHTML = `
+        <div class="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-start mb-6">
+                <div>
+                    <h3 class="text-2xl font-bold text-gray-800 mb-1">Your Orders</h3>
+                    <p class="text-sm text-gray-600">Reg: ${regNumber}</p>
+                </div>
+                <button onclick="closeOrderStatusModal()" class="text-gray-400 hover:text-gray-600 text-2xl">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <!-- Pending Orders -->
+            ${pendingOrders.length > 0 ? `
+                <div class="mb-6">
+                    <div class="flex items-center gap-2 mb-3">
+                        <i class="fas fa-clock text-yellow-500 text-xl"></i>
+                        <h4 class="text-lg font-bold text-gray-800">Pending Orders (${pendingOrders.length})</h4>
+                    </div>
+                    <div class="space-y-3">
+                        ${pendingOrders.map(order => renderOrderCard(order, 'pending')).join('')}
+                    </div>
+                </div>
+            ` : ''}
+            
+            <!-- Completed Orders -->
+            ${completedOrders.length > 0 ? `
+                <div>
+                    <div class="flex items-center gap-2 mb-3">
+                        <i class="fas fa-check-circle text-green-500 text-xl"></i>
+                        <h4 class="text-lg font-bold text-gray-800">Completed Orders (${completedOrders.length})</h4>
+                    </div>
+                    <div class="space-y-3">
+                        ${completedOrders.map(order => renderOrderCard(order, 'completed')).join('')}
+                    </div>
+                </div>
+            ` : ''}
+            
+            <!-- Pickup Info -->
+            ${pendingOrders.length > 0 ? `
+                <div class="mt-6 bg-green-50 border-l-4 border-green-500 rounded-lg p-4">
+                    <div class="flex items-start gap-3">
+                        <i class="fas fa-info-circle text-green-600 text-xl mt-1"></i>
+                        <div>
+                            <h4 class="font-bold text-green-800 mb-1">📦 Pickup Instructions</h4>
+                            <p class="text-sm text-green-700">Orders will be ready for pickup between <span class="font-bold">6:00 PM - 8:00 PM</span></p>
+                            <p class="text-xs text-green-600 mt-1">Please bring your registration number when collecting</p>
+                        </div>
+                    </div>
+                </div>
+            ` : ''}
+            
+            <button onclick="closeOrderStatusModal()" class="w-full mt-6 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 rounded-xl font-medium transition-all">
+                Close
+            </button>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+}
+
+function renderOrderCard(order, status) {
+    const statusColors = {
+        pending: 'bg-yellow-50 border-yellow-200',
+        completed: 'bg-green-50 border-green-200'
+    };
+    
+    const statusIcons = {
+        pending: 'fa-clock text-yellow-600',
+        completed: 'fa-check-circle text-green-600'
+    };
+    
+    const statusTexts = {
+        pending: '⏳ Being Prepared',
+        completed: '✅ Ready for Pickup!'
+    };
+    
+    return `
+        <div class="border-2 ${statusColors[status]} rounded-xl p-4">
+            <div class="flex justify-between items-start mb-3">
+                <div>
+                    <div class="flex items-center gap-2 mb-1">
+                        <i class="fas ${statusIcons[status]}"></i>
+                        <span class="font-bold text-gray-800">${statusTexts[status]}</span>
+                    </div>
+                    <p class="text-xs text-gray-500">
+                        <i class="fas fa-calendar-alt mr-1"></i>
+                        ${new Date(order.timestamp).toLocaleString('en-IN', {
+                            day: 'numeric',
+                            month: 'short',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        })}
+                    </p>
+                </div>
+                <div class="text-right">
+                    <p class="text-2xl font-bold text-green-600">₹${order.total}</p>
+                    <p class="text-xs text-gray-500">${order.paymentMethod.toUpperCase()}</p>
+                </div>
+            </div>
+            
+            <div class="border-t border-gray-200 pt-3 mt-3">
+                <p class="text-sm font-semibold text-gray-700 mb-2">Items:</p>
+                <div class="space-y-1">
+                    ${order.items.map(item => `
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-700">${item.name} (${item.size}) × ${item.qty}</span>
+                            <span class="text-gray-600">₹${item.price * item.qty}</span>
+                        </div>
+                    `).join('')}
+                </div>
+                ${order.carryBag ? `
+                    <div class="flex justify-between text-sm mt-1 text-blue-600">
+                        <span><i class="fas fa-shopping-bag mr-1"></i>Carry Bag</span>
+                        <span>₹10</span>
+                    </div>
+                ` : ''}
+            </div>
+            
+            ${order.transactionId ? `
+                <div class="mt-3 text-xs text-gray-500 bg-gray-100 p-2 rounded">
+                    <i class="fas fa-receipt mr-1"></i>
+                    Transaction ID: ${order.transactionId}
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+function closeOrderStatusModal() {
+    const modal = document.getElementById('orderStatusModal');
+    if (modal) modal.remove();
+}
+
+// Quick check with stored reg number
+// Quick check with stored reg number
+function quickCheckOrders() {
+    const savedReg = localStorage.getItem('studentRegNumber');
+    
+    console.log('📋 Quick check - Saved reg:', savedReg); // Debug
+    console.log('📋 Total orders loaded:', orders.length); // Debug
+    
+    if (savedReg && orders.length > 0) {
+        const myOrders = orders.filter(o => 
+            o.regNumber && o.regNumber.toLowerCase() === savedReg.toLowerCase()
+        );
+        
+        console.log('📋 My orders found:', myOrders.length); // Debug
+        
+        if (myOrders.length > 0) {
+            const pending = myOrders.filter(o => o.status === 'pending').length;
+            const completed = myOrders.filter(o => o.status === 'completed').length;
+            
+            if (pending > 0 || completed > 0) {
+                return { pending, completed, total: myOrders.length };
+            }
+        }
+    }
+    return null;
+}
+// Save reg number for quick access
+function saveRegNumber(regNumber) {
+    if (regNumber) {
+        localStorage.setItem('studentRegNumber', regNumber);
+    }
+}
+
+// Expose to global scope
+window.checkMyOrders = checkMyOrders;
+window.closeOrderStatusModal = closeOrderStatusModal;
+window.quickCheckOrders = quickCheckOrders;
+// ============================================
 // EXPOSE ALL FUNCTIONS TO GLOBAL SCOPE
 // ============================================
 // This must be at the END of script.js
@@ -2395,3 +2658,327 @@ window.openDirectUPIPayment = openDirectUPIPayment;
 window.restoreDeletedItem = restoreDeletedItem;
 window.renderDeletedItemsSection = renderDeletedItemsSection;
 window.clearAllDeleted = clearAllDeleted;
+// ============================================
+// SALES ANALYTICS FUNCTIONS
+// ============================================
+
+function calculateSalesAnalytics() {
+    const completedOrders = orders.filter(o => o.status === 'completed');
+    const pendingOrders = orders.filter(o => o.status === 'pending');
+    
+    // Revenue calculations
+    const totalRevenue = completedOrders.reduce((sum, o) => sum + o.total, 0);
+    const pendingRevenue = pendingOrders.reduce((sum, o) => sum + o.total, 0);
+    
+    // Today's data
+    const today = new Date().toDateString();
+    const todayOrders = completedOrders.filter(o => 
+        new Date(o.timestamp).toDateString() === today
+    );
+    const todayRevenue = todayOrders.reduce((sum, o) => sum + o.total, 0);
+    
+    // This week's data
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const weekOrders = completedOrders.filter(o => 
+        new Date(o.timestamp) >= weekAgo
+    );
+    const weekRevenue = weekOrders.reduce((sum, o) => sum + o.total, 0);
+    
+    // This month's data
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+    const monthOrders = completedOrders.filter(o => 
+        new Date(o.timestamp) >= monthStart
+    );
+    const monthRevenue = monthOrders.reduce((sum, o) => sum + o.total, 0);
+    
+    // Item sales analysis
+    const itemSales = {};
+    completedOrders.forEach(order => {
+        order.items.forEach(item => {
+            if (!itemSales[item.name]) {
+                itemSales[item.name] = {
+                    name: item.name,
+                    category: item.category || items.find(i => i.id === item.id)?.category || 'Other',
+                    quantity: 0,
+                    revenue: 0,
+                    orders: 0
+                };
+            }
+            itemSales[item.name].quantity += item.qty;
+            itemSales[item.name].revenue += item.price * item.qty;
+            itemSales[item.name].orders++;
+        });
+    });
+    
+    // Top selling items
+    const topItems = Object.values(itemSales)
+        .sort((a, b) => b.quantity - a.quantity)
+        .slice(0, 10);
+    
+    // Top revenue items
+    const topRevenueItems = Object.values(itemSales)
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 10);
+    
+    // Category sales
+    const categorySales = {};
+    Object.values(itemSales).forEach(item => {
+        if (!categorySales[item.category]) {
+            categorySales[item.category] = {
+                category: item.category,
+                quantity: 0,
+                revenue: 0,
+                items: 0
+            };
+        }
+        categorySales[item.category].quantity += item.quantity;
+        categorySales[item.category].revenue += item.revenue;
+        categorySales[item.category].items++;
+    });
+    
+    const topCategories = Object.values(categorySales)
+        .sort((a, b) => b.revenue - a.revenue);
+    
+    // Average order value
+    const avgOrderValue = completedOrders.length > 0 
+        ? totalRevenue / completedOrders.length 
+        : 0;
+    
+    // Peak hours analysis
+    const hourlyOrders = Array(24).fill(0);
+    completedOrders.forEach(order => {
+        const hour = new Date(order.timestamp).getHours();
+        hourlyOrders[hour]++;
+    });
+    const peakHour = hourlyOrders.indexOf(Math.max(...hourlyOrders));
+    
+    // Payment method breakdown
+    const paymentMethods = {
+        upi: completedOrders.filter(o => o.paymentMethod === 'upi').length,
+        cod: completedOrders.filter(o => o.paymentMethod === 'cod').length,
+        direct: completedOrders.filter(o => o.paymentMethod === 'direct').length
+    };
+    
+    return {
+        totalRevenue,
+        pendingRevenue,
+        todayRevenue,
+        weekRevenue,
+        monthRevenue,
+        todayOrders: todayOrders.length,
+        weekOrders: weekOrders.length,
+        monthOrders: monthOrders.length,
+        totalOrders: completedOrders.length,
+        pendingOrders: pendingOrders.length,
+        topItems,
+        topRevenueItems,
+        topCategories,
+        avgOrderValue,
+        peakHour,
+        paymentMethods,
+        itemSales: Object.values(itemSales)
+    };
+}
+
+function renderSalesAnalytics() {
+    const analytics = calculateSalesAnalytics();
+    
+    // Update revenue cards
+    document.getElementById('totalRevenue').textContent = `₹${analytics.totalRevenue.toFixed(0)}`;
+    document.getElementById('pendingRevenue').textContent = `₹${analytics.pendingRevenue.toFixed(0)}`;
+    document.getElementById('todayRevenue').textContent = `₹${analytics.todayRevenue.toFixed(0)}`;
+    document.getElementById('weekRevenue').textContent = `₹${analytics.weekRevenue.toFixed(0)}`;
+    document.getElementById('monthRevenue').textContent = `₹${analytics.monthRevenue.toFixed(0)}`;
+    
+    // Update order counts
+    document.getElementById('todayOrdersCount').textContent = analytics.todayOrders;
+    document.getElementById('weekOrdersCount').textContent = analytics.weekOrders;
+    document.getElementById('monthOrdersCount').textContent = analytics.monthOrders;
+    document.getElementById('avgOrderValue').textContent = `₹${analytics.avgOrderValue.toFixed(0)}`;
+    
+    // Render top items
+    const topItemsContainer = document.getElementById('topItemsList');
+    topItemsContainer.innerHTML = analytics.topItems.map((item, index) => `
+        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all">
+            <div class="flex items-center gap-3">
+                <span class="flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm ${
+                    index === 0 ? 'bg-yellow-100 text-yellow-700' :
+                    index === 1 ? 'bg-gray-100 text-gray-700' :
+                    index === 2 ? 'bg-orange-100 text-orange-700' :
+                    'bg-blue-50 text-blue-600'
+                }">
+                    ${index + 1}
+                </span>
+                <div>
+                    <p class="font-semibold text-gray-800 text-sm">${item.name}</p>
+                    <p class="text-xs text-gray-500">${item.category}</p>
+                </div>
+            </div>
+            <div class="text-right">
+                <p class="font-bold text-green-600">${item.quantity} sold</p>
+                <p class="text-xs text-gray-500">₹${item.revenue}</p>
+            </div>
+        </div>
+    `).join('');
+    
+    // Render top revenue items
+    const topRevenueContainer = document.getElementById('topRevenueList');
+    topRevenueContainer.innerHTML = analytics.topRevenueItems.slice(0, 5).map((item, index) => `
+        <div class="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+            <div>
+                <p class="font-semibold text-gray-800 text-sm">${item.name}</p>
+                <p class="text-xs text-gray-500">${item.quantity} units</p>
+            </div>
+            <p class="font-bold text-green-600">₹${item.revenue}</p>
+        </div>
+    `).join('');
+    
+    // Render category breakdown
+    const categoryContainer = document.getElementById('categoryBreakdown');
+    categoryContainer.innerHTML = analytics.topCategories.map(cat => {
+        const percentage = (cat.revenue / analytics.totalRevenue * 100).toFixed(1);
+        return `
+            <div class="mb-4">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="font-semibold text-gray-800 text-sm">${cat.category}</span>
+                    <span class="text-sm text-gray-600">₹${cat.revenue} (${percentage}%)</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="bg-gradient-to-r from-green-500 to-emerald-500 h-2 rounded-full transition-all" style="width: ${percentage}%"></div>
+                </div>
+                <p class="text-xs text-gray-500 mt-1">${cat.quantity} items sold from ${cat.items} products</p>
+            </div>
+        `;
+    }).join('');
+    
+    // Render payment method breakdown
+    const paymentContainer = document.getElementById('paymentBreakdown');
+    const totalPayments = Object.values(analytics.paymentMethods).reduce((a, b) => a + b, 0);
+    paymentContainer.innerHTML = `
+        <div class="space-y-3">
+            ${Object.entries(analytics.paymentMethods).map(([method, count]) => {
+                const percentage = totalPayments > 0 ? (count / totalPayments * 100).toFixed(1) : 0;
+                const colors = {
+                    upi: 'from-blue-500 to-blue-600',
+                    cod: 'from-green-500 to-green-600',
+                    direct: 'from-purple-500 to-purple-600'
+                };
+                const icons = {
+                    upi: 'fa-qrcode',
+                    cod: 'fa-money-bill-wave',
+                    direct: 'fa-mobile-alt'
+                };
+                return `
+                    <div class="flex items-center justify-between p-3 bg-gradient-to-r ${colors[method]} text-white rounded-lg">
+                        <div class="flex items-center gap-3">
+                            <i class="fas ${icons[method]} text-xl"></i>
+                            <span class="font-semibold uppercase">${method}</span>
+                        </div>
+                        <div class="text-right">
+                            <p class="font-bold">${count} orders</p>
+                            <p class="text-xs opacity-90">${percentage}%</p>
+                        </div>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+    
+    // Peak hours
+    document.getElementById('peakHour').textContent = 
+        `${analytics.peakHour}:00 - ${analytics.peakHour + 1}:00`;
+}
+function exportSalesReport() {
+    const analytics = calculateSalesAnalytics();
+    const wb = XLSX.utils.book_new();
+    
+    // Sheet 1: Summary
+    const summaryData = [
+        ['K2 ESSENTIALS - SALES REPORT'],
+        ['Generated:', new Date().toLocaleString('en-IN')],
+        [''],
+        ['REVENUE SUMMARY'],
+        ['Total Revenue (Completed):', `₹${analytics.totalRevenue}`],
+        ['Pending Revenue:', `₹${analytics.pendingRevenue}`],
+        ['Today\'s Revenue:', `₹${analytics.todayRevenue}`],
+        ['This Week:', `₹${analytics.weekRevenue}`],
+        ['This Month:', `₹${analytics.monthRevenue}`],
+        [''],
+        ['ORDER SUMMARY'],
+        ['Total Completed Orders:', analytics.totalOrders],
+        ['Pending Orders:', analytics.pendingOrders],
+        ['Today\'s Orders:', analytics.todayOrders],
+        ['This Week:', analytics.weekOrders],
+        ['This Month:', analytics.monthOrders],
+        ['Average Order Value:', `₹${analytics.avgOrderValue.toFixed(2)}`],
+        ['Peak Hour:', `${analytics.peakHour}:00`],
+    ];
+    const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+    
+    // Sheet 2: Top Selling Items
+    const topItemsData = analytics.topItems.map((item, index) => ({
+        'Rank': index + 1,
+        'Item Name': item.name,
+        'Category': item.category,
+        'Units Sold': item.quantity,
+        'Revenue': `₹${item.revenue}`,
+        'Orders': item.orders,
+        'Avg per Order': (item.quantity / item.orders).toFixed(1)
+    }));
+    const wsTopItems = XLSX.utils.json_to_sheet(topItemsData);
+    XLSX.utils.book_append_sheet(wb, wsTopItems, 'Top Sellers');
+    
+    // Sheet 3: Category Performance
+    const categoryData = analytics.topCategories.map(cat => ({
+        'Category': cat.category,
+        'Revenue': `₹${cat.revenue}`,
+        'Units Sold': cat.quantity,
+        'Products': cat.items,
+        'Percentage': ((cat.revenue / analytics.totalRevenue) * 100).toFixed(1) + '%'
+    }));
+    const wsCategory = XLSX.utils.json_to_sheet(categoryData);
+    XLSX.utils.book_append_sheet(wb, wsCategory, 'Category Performance');
+    
+    // Sheet 4: All Items Sales
+    const allItemsData = analytics.itemSales
+        .sort((a, b) => b.revenue - a.revenue)
+        .map((item, index) => ({
+            'Rank': index + 1,
+            'Item': item.name,
+            'Category': item.category,
+            'Quantity': item.quantity,
+            'Revenue': `₹${item.revenue}`,
+            'Orders': item.orders
+        }));
+    const wsAllItems = XLSX.utils.json_to_sheet(allItemsData);
+    XLSX.utils.book_append_sheet(wb, wsAllItems, 'All Items Sales');
+    
+    // Sheet 5: Payment Methods
+    const paymentData = Object.entries(analytics.paymentMethods).map(([method, count]) => ({
+        'Payment Method': method.toUpperCase(),
+        'Orders': count,
+        'Percentage': ((count / analytics.totalOrders) * 100).toFixed(1) + '%'
+    }));
+    const wsPayment = XLSX.utils.json_to_sheet(paymentData);
+    XLSX.utils.book_append_sheet(wb, wsPayment, 'Payment Methods');
+    
+    XLSX.writeFile(wb, `K2_Sales_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
+    showToast('✅ Sales report exported!', 'success');
+}
+// Auto-refresh analytics every 30 seconds
+function startAnalyticsRefresh() {
+    setInterval(() => {
+        if (document.getElementById('analytics')?.classList.contains('active')) {
+            renderSalesAnalytics();
+        }
+    }, 30000);
+}
+
+// Expose to global scope
+window.calculateSalesAnalytics = calculateSalesAnalytics;
+window.renderSalesAnalytics = renderSalesAnalytics;
+window.exportSalesReport = exportSalesReport;
